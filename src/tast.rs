@@ -6,6 +6,12 @@ use std::{fmt::Display, rc::Rc};
 #[derive(Debug, Clone)]
 pub struct NameDef(String);
 
+impl Display for N<NameDef> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.t.0, self.ty)
+    }
+}
+
 pub struct Prog {
     bindings: Vec<N<Binding>>,
 }
@@ -36,9 +42,32 @@ impl Lambda {
     }
 }
 
+impl Display for N<Lambda> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // TODO: handle free vars
+        let bounds = self
+            .t
+            .bound
+            .iter()
+            .map(|b| format!("{}", b))
+            .collect::<Vec<_>>()
+            .join(",");
+
+        writeln!(f, "λ ({}): {},", bounds, self.ty)?;
+        write!(f, "{}", indented(&self.t.body))
+    }
+}
+
 pub struct Binding {
     name: N<NameDef>,
     ex: Ex,
+}
+
+impl Display for N<Binding> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{} = ", self.t.name)?;
+        write!(f, "{}", indented(&self.t.ex))
+    }
 }
 
 struct Application {
@@ -46,10 +75,32 @@ struct Application {
     args: Vec<Ex>,
 }
 
+impl Display for N<Application> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{}: {}", self.t.ex, self.ty)?;
+        let arg_fmt = self
+            .t
+            .args
+            .iter()
+            .map(|a| format!("{}", indented(a)))
+            .collect::<Vec<_>>()
+            .join("\n");
+        write!(f, "{}", arg_fmt)
+    }
+}
+
 struct Condition {
     pred: Ex,
     then: Ex,
     els: Ex,
+}
+
+impl Display for N<Condition> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "if {}", self.t.pred)?;
+        writeln!(f, "then {}", self.t.then)?;
+        write!(f, "else {}", self.t.els)
+    }
 }
 
 pub enum Ex {
@@ -79,22 +130,13 @@ impl Ex {
 impl Display for Ex {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Ex::Bind(b) => {
-                writeln!(f, "{}: {}", b.t.name.t.0, b.ty)?;
-                write!(f, "{}", indented(&b.t.ex))?;
-            }
-            Ex::Lam(_) => (),
-            Ex::Ap(_) => (),
-            Ex::Cond(_) => (),
-            Ex::Ref(r) => {
-                write!(f, "{}: {}", r.t.0, r.ty)?;
-            }
-            Ex::ConstInt(i) => {
-                write!(f, "{}", i)?;
-            }
-            Ex::ConstBool(b) => {
-                write!(f, "{}", b)?;
-            }
+            Ex::Bind(b) => write!(f, "{}", b)?,
+            Ex::Lam(l) => write!(f, "{}", l)?,
+            Ex::Ap(a) => write!(f, "{}", a)?,
+            Ex::Cond(c) => write!(f, "{}", c)?,
+            Ex::Ref(r) => write!(f, "{}", r)?,
+            Ex::ConstInt(i) => write!(f, "{}", i)?,
+            Ex::ConstBool(b) => write!(f, "{}", b)?,
         }
 
         Ok(())
