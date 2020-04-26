@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum Ty {
     Int,
     Bool,

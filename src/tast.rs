@@ -3,12 +3,12 @@ use crate::ty::Ty;
 use indented::indented;
 use std::{fmt::Display, rc::Rc};
 
-#[derive(Debug, Clone)]
-pub struct NameDef(String);
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct NameDef(pub String);
 
 impl Display for N<NameDef> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: {}", self.t.0, self.ty)
+        write!(f, "Name {}: {}", self.t.0, self.ty)
     }
 }
 
@@ -16,10 +16,10 @@ pub struct Prog {
     bindings: Vec<N<Binding>>,
 }
 
-#[derive(Clone)]
-struct N<T> {
-    t: Rc<T>,
-    ty: Ty,
+#[derive(Debug, Clone)]
+pub struct N<T> {
+    pub t: Rc<T>,
+    pub ty: Ty,
 }
 
 impl<T> N<T> {
@@ -28,10 +28,11 @@ impl<T> N<T> {
     }
 }
 
-struct Lambda {
-    bound: Vec<N<NameDef>>,
-    free: Vec<N<NameDef>>,
-    body: Ex,
+#[derive(Debug, Clone)]
+pub struct Lambda {
+    pub bound: Vec<N<NameDef>>,
+    pub free: Vec<N<NameDef>>,
+    pub body: Ex,
 }
 
 impl Lambda {
@@ -58,26 +59,28 @@ impl Display for N<Lambda> {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Binding {
-    name: N<NameDef>,
-    ex: Ex,
+    pub name: N<NameDef>,
+    pub ex: Ex,
 }
 
 impl Display for N<Binding> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "{} = ", self.t.name)?;
+        writeln!(f, "Binding {} = ", self.t.name)?;
         write!(f, "{}", indented(&self.t.ex))
     }
 }
 
-struct Application {
-    ex: Ex,
-    args: Vec<Ex>,
+#[derive(Debug, Clone)]
+pub struct Application {
+    pub ex: Ex,
+    pub args: Vec<Ex>,
 }
 
 impl Display for N<Application> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "{}: {}", self.t.ex, self.ty)?;
+        writeln!(f, "App {}: {}", self.t.ex, self.ty)?;
         let arg_fmt = self
             .t
             .args
@@ -89,10 +92,11 @@ impl Display for N<Application> {
     }
 }
 
-struct Condition {
-    pred: Ex,
-    then: Ex,
-    els: Ex,
+#[derive(Debug, Clone)]
+pub struct Condition {
+    pub pred: Ex,
+    pub then: Ex,
+    pub els: Ex,
 }
 
 impl Display for N<Condition> {
@@ -103,6 +107,7 @@ impl Display for N<Condition> {
     }
 }
 
+#[derive(Debug, Clone)]
 pub enum Ex {
     Bind(N<Binding>),
     Lam(N<Lambda>),
@@ -258,6 +263,15 @@ pub mod example {
         let binding = fibonacci();
         let ty = Ty::mk_func_1(&Ty::Int, &Ty::Int);
         N::new(binding, ty).into()
+    }
+
+    pub fn fibonacci_ex_n(n: i64) -> Ex {
+        let ex = fibonacci_ex();
+        let app = Application {
+            ex,
+            args: vec![ConstInt(n)],
+        };
+        N::new(app, Ty::Int).into()
     }
 
     pub fn const_binding() -> Binding {
