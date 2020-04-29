@@ -1,7 +1,8 @@
+use crate::builtin::{BuiltinName, B};
 use crate::ty::Ty;
 
 use indented::indented;
-use std::{fmt::Display, rc::Rc};
+use std::{fmt::Display, sync::Arc};
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct NameDef(pub String);
@@ -12,19 +13,43 @@ impl Display for N<NameDef> {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum NameRef {
+    Builtin(&'static BuiltinName),
+    User(N<NameDef>),
+}
+
+impl NameRef {
+    pub fn ty(&self) -> &Ty {
+        match self {
+            NameRef::Builtin(bn) => &bn.ty,
+            NameRef::User(un) => &un.ty,
+        }
+    }
+}
+
+impl Display for NameRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NameRef::Builtin(bn) => write!(f, "BuiltinName {}: {}", bn.t, bn.ty),
+            NameRef::User(un) => write!(f, "UserName {}: {}", un.t.0, un.ty),
+        }
+    }
+}
+
 pub struct Prog {
     bindings: Vec<N<Binding>>,
 }
 
 #[derive(Debug, Clone)]
 pub struct N<T> {
-    pub t: Rc<T>,
+    pub t: Arc<T>,
     pub ty: Ty,
 }
 
 impl<T> N<T> {
-    fn new(t: T, ty: Ty) -> Self {
-        Self { t: Rc::new(t), ty }
+    pub fn new(t: T, ty: Ty) -> Self {
+        Self { t: Arc::new(t), ty }
     }
 }
 
@@ -37,9 +62,9 @@ pub struct Lambda {
 
 impl Lambda {
     pub fn ty(&self) -> Ty {
-        let par = self.bound.iter().map(|b| &b.ty);
-        let ret = &self.body.ty();
-        Ty::mk_func_n(par, ret)
+        let par = self.bound.iter().map(|b| b.ty.clone()).collect();
+        let ret = self.body.ty();
+        Ty::mk_func_n(par, ret.clone())
     }
 }
 
@@ -113,7 +138,7 @@ pub enum Ex {
     Lam(N<Lambda>),
     Ap(N<Application>),
     Cond(N<Condition>),
-    Ref(N<NameDef>),
+    Ref(NameRef),
     ConstInt(i64),
     ConstBool(bool),
 }
@@ -125,7 +150,7 @@ impl Ex {
             Ex::Lam(n) => &n.ty,
             Ex::Ap(n) => &n.ty,
             Ex::Cond(n) => &n.ty,
-            Ex::Ref(n) => &n.ty,
+            Ex::Ref(n) => n.ty(),
             Ex::ConstInt(_) => &Ty::Int,
             Ex::ConstBool(_) => &Ty::Bool,
         }
@@ -150,7 +175,13 @@ impl Display for Ex {
 
 impl From<N<NameDef>> for Ex {
     fn from(v: N<NameDef>) -> Self {
-        Ex::Ref(v)
+        Ex::Ref(NameRef::User(v))
+    }
+}
+
+impl From<&'static BuiltinName> for Ex {
+    fn from(v: &'static BuiltinName) -> Self {
+        Ex::Ref(NameRef::Builtin(v))
     }
 }
 
@@ -183,36 +214,29 @@ pub mod example {
     use super::*;
 
     pub fn fibonacci() -> Binding {
-        let cmp_type = Ty::mk_func_2(&Ty::Int, &Ty::Int, &Ty::Bool);
-        let less = N::new(NameDef("less".to_string()), cmp_type.clone());
+        let less = B.less();
+        let plus = B.plus();
+        let minus = B.minus();
 
-        let arith_type = Ty::mk_func_2(&Ty::Int, &Ty::Int, &Ty::Int);
-
-        let plus = N::new(NameDef("plus".to_string()), arith_type.clone());
-        let minus = N::new(NameDef("minus".to_string()), arith_type.clone());
-
-        let fib = N::new(
-            NameDef("fib".to_string()),
-            Ty::mk_func_1(&Ty::Int, &Ty::Int),
-        );
+        let fib = N::new(NameDef("fib".to_string()), Ty::mk_func_1(Ty::Int, Ty::Int));
         let n = N::new(NameDef("n".to_string()), Ty::Int);
 
         let pred = Application {
-            ex: less.clone().into(),
+            ex: less.into(),
             args: vec![n.clone().into(), ConstInt(2)],
         };
 
         let then = ConstInt(1);
 
         let els = Application {
-            ex: plus.clone().into(),
+            ex: plus.into(),
             args: vec![
                 N::new(
                     Application {
                         ex: fib.clone().into(),
                         args: vec![N::new(
                             Application {
-                                ex: minus.clone().into(),
+                                ex: minus.into(),
                                 args: vec![n.clone().into(), ConstInt(1)],
                             },
                             Ty::Int,
@@ -227,7 +251,7 @@ pub mod example {
                         ex: fib.clone().into(),
                         args: vec![N::new(
                             Application {
-                                ex: minus.clone().into(),
+                                ex: minus.into(),
                                 args: vec![n.clone().into(), ConstInt(2)],
                             },
                             Ty::Int,
@@ -251,7 +275,7 @@ pub mod example {
             free: vec![],
             body: N::new(body, Ty::Int).into(),
         };
-        let lam_ty = Ty::mk_func_1(&Ty::Int, &Ty::Int);
+        let lam_ty = Ty::mk_func_1(Ty::Int, Ty::Int);
 
         Binding {
             name: fib.clone().into(),
@@ -261,14 +285,14 @@ pub mod example {
 
     pub fn fibonacci_ex() -> Ex {
         let binding = fibonacci();
-        let ty = Ty::mk_func_1(&Ty::Int, &Ty::Int);
+        let ty = Ty::mk_func_1(Ty::Int, Ty::Int);
         N::new(binding, ty).into()
     }
 
-    pub fn fibonacci_ex_n(n: i64) -> Ex {
-        let ex = fibonacci_ex();
+    pub fn fibonacci_ap_n(n: i64) -> Ex {
+        let fib = N::new(NameDef("fib".to_string()), Ty::mk_func_1(Ty::Int, Ty::Int));
         let app = Application {
-            ex,
+            ex: fib.into(),
             args: vec![ConstInt(n)],
         };
         N::new(app, Ty::Int).into()
@@ -285,5 +309,61 @@ pub mod example {
     pub fn const_binding_ex() -> Ex {
         let binding = const_binding();
         N::new(binding, Ty::Int).into()
+    }
+
+    pub fn inc_binding() -> Binding {
+        let plus = B.plus();
+        let n = N::new(NameDef("n".to_string()), Ty::Int);
+
+        let lam = Lambda {
+            bound: vec![n.clone()],
+            free: vec![],
+            body: N::new(
+                Application {
+                    ex: plus.into(),
+                    args: vec![n.clone().into(), ConstInt(1)],
+                },
+                Ty::Int,
+            )
+            .into(),
+        };
+
+        let ty = Ty::mk_func_1(Ty::Int, Ty::Int);
+        Binding {
+            name: N::new(NameDef("inc".to_string()), ty.clone()),
+            ex: N::new(lam, ty).into(),
+        }
+    }
+
+    pub fn inc_ex() -> Ex {
+        let ty = Ty::mk_func_1(Ty::Int, Ty::Int);
+        N::new(inc_binding(), ty).into()
+    }
+
+    pub fn inc_ap_n(n: i64) -> Ex {
+        let ty = Ty::mk_func_1(Ty::Int, Ty::Int);
+        let ex = N::new(NameDef("inc".to_string()), ty).into();
+        let app = Application {
+            ex,
+            args: vec![ConstInt(n)],
+        };
+        N::new(app, Ty::Int).into()
+    }
+
+    pub fn incinc_ap_n(n: i64) -> Ex {
+        let ty = Ty::mk_func_1(Ty::Int, Ty::Int);
+        let inc_ref = N::new(NameDef("inc".to_string()), ty);
+
+        let app = Application {
+            ex: inc_ref.clone().into(),
+            args: vec![ConstInt(n)],
+        };
+        let app = N::new(app, Ty::Int);
+
+        let app2 = Application {
+            ex: inc_ref.clone().into(),
+            args: vec![app.into()],
+        };
+        N::new(app2, Ty::Int).into()
     }
 }

@@ -8,24 +8,23 @@ pub enum Ty {
 }
 
 impl Ty {
-    pub fn mk_func_n<'a, 'b>(par: impl Iterator<Item = &'a Ty>, ret: &'b Ty) -> Ty {
-        let par = par.cloned().collect();
-        let ret = Box::new(ret.clone());
-
+    #[allow(dead_code)]
+    pub fn mk_func_n<'a, 'b>(par: Vec<Ty>, ret: Ty) -> Ty {
+        let ret = Box::new(ret);
         Ty::F { par, ret }
     }
 
-    pub fn mk_func_1<'a, 'b>(par: &Ty, ret: &Ty) -> Ty {
+    pub fn mk_func_1<'a, 'b>(par: Ty, ret: Ty) -> Ty {
         Ty::F {
-            par: vec![par.clone()],
-            ret: Box::new(ret.clone()),
+            par: vec![par],
+            ret: Box::new(ret),
         }
     }
 
-    pub fn mk_func_2(par_1: &Ty, par_2: &Ty, ret: &Ty) -> Ty {
+    pub fn mk_func_2(par_1: Ty, par_2: Ty, ret: Ty) -> Ty {
         Ty::F {
-            par: vec![par_1.clone(), par_2.clone()],
-            ret: Box::new(ret.clone()),
+            par: vec![par_1, par_2],
+            ret: Box::new(ret),
         }
     }
 }

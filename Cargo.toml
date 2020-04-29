@@ -9,3 +9,4 @@ edition = "2018"
 [dependencies]
 rpds = "0.7.0"
 indented = "0.1.0"
+once_cell = "1.3.1"
