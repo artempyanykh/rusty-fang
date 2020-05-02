@@ -1,45 +1,9 @@
 use crate::builtin::{BuiltinName, B};
 use crate::ty::Ty;
+use std::ops::Deref;
 
 use indented::indented;
 use std::{fmt::Display, sync::Arc};
-
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct NameDef(pub String);
-
-impl Display for N<NameDef> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Name {}: {}", self.t.0, self.ty)
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum NameRef {
-    Builtin(&'static BuiltinName),
-    User(N<NameDef>),
-}
-
-impl NameRef {
-    pub fn ty(&self) -> &Ty {
-        match self {
-            NameRef::Builtin(bn) => &bn.ty,
-            NameRef::User(un) => &un.ty,
-        }
-    }
-}
-
-impl Display for NameRef {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            NameRef::Builtin(bn) => write!(f, "BuiltinName {}: {}", bn.t, bn.ty),
-            NameRef::User(un) => write!(f, "UserName {}: {}", un.t.0, un.ty),
-        }
-    }
-}
-
-pub struct Prog {
-    bindings: Vec<N<Binding>>,
-}
 
 #[derive(Debug, Clone)]
 pub struct N<T> {
@@ -53,6 +17,28 @@ impl<T> N<T> {
     }
 }
 
+impl<T> Deref for N<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.t
+    }
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct NameDef(pub String);
+
+impl Display for N<NameDef> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Name {}: {}", self.t.0, self.ty)
+    }
+}
+
+#[allow(dead_code)]
+pub struct Prog {
+    bindings: Vec<N<Binding>>,
+}
+
 #[derive(Debug, Clone)]
 pub struct Lambda {
     pub bound: Vec<N<NameDef>>,
@@ -60,19 +46,10 @@ pub struct Lambda {
     pub body: Ex,
 }
 
-impl Lambda {
-    pub fn ty(&self) -> Ty {
-        let par = self.bound.iter().map(|b| b.ty.clone()).collect();
-        let ret = self.body.ty();
-        Ty::mk_func_n(par, ret.clone())
-    }
-}
-
 impl Display for N<Lambda> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // TODO: handle free vars
         let bounds = self
-            .t
             .bound
             .iter()
             .map(|b| format!("{}", b))
@@ -138,19 +115,22 @@ pub enum Ex {
     Lam(N<Lambda>),
     Ap(N<Application>),
     Cond(N<Condition>),
-    Ref(NameRef),
+    URef(N<NameDef>),
+    BRef(&'static N<BuiltinName>),
     ConstInt(i64),
     ConstBool(bool),
 }
 
 impl Ex {
+    #[allow(dead_code)]
     pub fn ty(&self) -> &Ty {
         match self {
             Ex::Bind(n) => &n.ty,
             Ex::Lam(n) => &n.ty,
             Ex::Ap(n) => &n.ty,
             Ex::Cond(n) => &n.ty,
-            Ex::Ref(n) => n.ty(),
+            Ex::URef(r) => &r.ty,
+            Ex::BRef(r) => &r.ty,
             Ex::ConstInt(_) => &Ty::Int,
             Ex::ConstBool(_) => &Ty::Bool,
         }
@@ -164,7 +144,8 @@ impl Display for Ex {
             Ex::Lam(l) => write!(f, "{}", l)?,
             Ex::Ap(a) => write!(f, "{}", a)?,
             Ex::Cond(c) => write!(f, "{}", c)?,
-            Ex::Ref(r) => write!(f, "{}", r)?,
+            Ex::URef(r) => write!(f, "{}", r)?,
+            Ex::BRef(r) => write!(f, "{}", r)?,
             Ex::ConstInt(i) => write!(f, "{}", i)?,
             Ex::ConstBool(b) => write!(f, "{}", b)?,
         }
@@ -175,13 +156,13 @@ impl Display for Ex {
 
 impl From<N<NameDef>> for Ex {
     fn from(v: N<NameDef>) -> Self {
-        Ex::Ref(NameRef::User(v))
+        Ex::URef(v)
     }
 }
 
-impl From<&'static BuiltinName> for Ex {
-    fn from(v: &'static BuiltinName) -> Self {
-        Ex::Ref(NameRef::Builtin(v))
+impl From<&'static N<BuiltinName>> for Ex {
+    fn from(v: &'static N<BuiltinName>) -> Self {
+        Ex::BRef(v)
     }
 }
 
@@ -209,14 +190,15 @@ impl From<N<Binding>> for Ex {
     }
 }
 
+#[allow(dead_code)]
 pub mod example {
     use super::Ex::*;
     use super::*;
 
     pub fn fibonacci() -> Binding {
-        let less = B.less();
-        let plus = B.plus();
-        let minus = B.minus();
+        let less = &B.less;
+        let plus = &B.plus;
+        let minus = &B.minus;
 
         let fib = N::new(NameDef("fib".to_string()), Ty::mk_func_1(Ty::Int, Ty::Int));
         let n = N::new(NameDef("n".to_string()), Ty::Int);
@@ -312,7 +294,7 @@ pub mod example {
     }
 
     pub fn inc_binding() -> Binding {
-        let plus = B.plus();
+        let plus = &B.plus;
         let n = N::new(NameDef("n".to_string()), Ty::Int);
 
         let lam = Lambda {

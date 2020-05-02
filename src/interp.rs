@@ -1,32 +1,31 @@
-use crate::builtin::B;
-use crate::tast::{Condition, Ex, NameDef, NameRef};
-use std::collections::HashMap;
+use crate::builtin::{BuiltinName, B};
+use crate::tast::{Condition, Ex, NameDef, N};
+use rpds::HashTrieMap;
 
 #[derive(Debug, Clone)]
 pub struct Env {
-    mapping: HashMap<NameDef, Ex>,
+    mapping: HashTrieMap<NameDef, Ex>,
 }
 
 impl Env {
     pub fn new() -> Env {
         Env {
-            mapping: HashMap::new(),
+            mapping: HashTrieMap::new(),
         }
     }
 
     pub fn bind(&self, name: &NameDef, ex: Ex) -> Env {
-        let mut new = self.clone();
-        new.mapping.insert(name.clone(), ex);
-        new
+        let mapping = self.mapping.insert(name.clone(), ex);
+        Self { mapping }
     }
 
     pub fn bind_many(&self, names: &[&NameDef], exs: &[Ex]) -> Env {
         assert_eq!(names.len(), exs.len());
-        let mut new = self.clone();
+        let mut mapping = self.mapping.clone();
         for (num, &n) in names.iter().enumerate() {
-            new.mapping.insert(n.clone(), exs[num].clone());
+            mapping.insert_mut(n.clone(), exs[num].clone());
         }
-        new
+        Self { mapping }
     }
 
     pub fn find(&self, name: &NameDef) -> Option<Ex> {
@@ -52,7 +51,7 @@ pub fn eval_ex(ex: Ex, env: &Env) -> Ex {
                     .collect();
 
             match ex {
-                Ref(n) => eval_builtin(&n, &args, env),
+                BRef(n) => eval_builtin(&n, &args, env),
                 Lam(l) => {
                     let bound: Vec<_> = l.t.bound.iter().map(|n| n.t.as_ref()).collect();
                     let new_env = env.bind_many(&bound, &args);
@@ -74,56 +73,45 @@ pub fn eval_ex(ex: Ex, env: &Env) -> Ex {
                 panic!("Unexpected boolean expression: {}", pred);
             }
         }
-        Ref(n) => {
-            // TODO: properly handle missing and builtin
-            match n {
-                NameRef::Builtin(bn) => bn.into(),
-                NameRef::User(un) => env
-                    .find(&un.t)
-                    .unwrap_or_else(|| panic!("Unkown name: {}", un)),
-            }
-        }
+        BRef(r) => r.into(),
+        URef(r) => env.find(&r).unwrap_or_else(|| panic!("Unkown name: {}", r)),
         ConstInt(_) => ex,
         ConstBool(_) => ex,
     }
 }
 
-pub fn eval_builtin(name: &NameRef, args: &[Ex], env: &Env) -> Ex {
+pub fn eval_builtin(name: &N<BuiltinName>, args: &[Ex], _env: &Env) -> Ex {
     use Ex::*;
 
-    if let NameRef::Builtin(name) = *name {
-        if name.t == B.plus().t {
-            let lhs = &args[0];
-            let rhs = &args[1];
+    if name.t == B.plus.t {
+        let lhs = &args[0];
+        let rhs = &args[1];
 
-            match (lhs, rhs) {
-                (ConstInt(n1), ConstInt(n2)) => return ConstInt(n1 + n2),
-                _ => panic!("Cannot add \n1: {}\n2: {}", lhs, rhs),
-            }
+        match (lhs, rhs) {
+            (ConstInt(n1), ConstInt(n2)) => return ConstInt(n1 + n2),
+            _ => panic!("Cannot add \n1: {}\n2: {}", lhs, rhs),
         }
-
-        if name.t == B.minus().t {
-            let lhs = &args[0];
-            let rhs = &args[1];
-
-            match (lhs, rhs) {
-                (ConstInt(n1), ConstInt(n2)) => return ConstInt(n1 - n2),
-                _ => panic!("Cannot subtract \n1: {}\n2: {}", lhs, rhs),
-            }
-        }
-
-        if name.t == B.less().t {
-            let lhs = &args[0];
-            let rhs = &args[1];
-
-            match (lhs, rhs) {
-                (ConstInt(n1), ConstInt(n2)) => return ConstBool(n1 < n2),
-                _ => panic!("Cannot compare \n1: {}\n2: {}", lhs, rhs),
-            }
-        }
-
-        panic!("Unknown builtin name: {}", name.t)
-    } else {
-        panic!("Expected a builtin name, got user-defined: {}", name)
     }
+
+    if name.t == B.minus.t {
+        let lhs = &args[0];
+        let rhs = &args[1];
+
+        match (lhs, rhs) {
+            (ConstInt(n1), ConstInt(n2)) => return ConstInt(n1 - n2),
+            _ => panic!("Cannot subtract \n1: {}\n2: {}", lhs, rhs),
+        }
+    }
+
+    if name.t == B.less.t {
+        let lhs = &args[0];
+        let rhs = &args[1];
+
+        match (lhs, rhs) {
+            (ConstInt(n1), ConstInt(n2)) => return ConstBool(n1 < n2),
+            _ => panic!("Cannot compare \n1: {}\n2: {}", lhs, rhs),
+        }
+    }
+
+    panic!("Unknown builtin name: {}", name.t)
 }

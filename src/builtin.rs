@@ -1,28 +1,21 @@
 use crate::tast::N;
 use crate::ty::*;
+use std::fmt::{self, Display};
 
 use once_cell::sync::Lazy;
 
-pub type BuiltinName = N<&'static str>;
+pub type BuiltinName = &'static str;
 
-pub struct BuiltinDefs {
-    plus: BuiltinName,
-    minus: BuiltinName,
-    less: BuiltinName,
+impl Display for N<BuiltinName> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        write!(f, "BuiltinName {}: {}", self.t, self.ty)
+    }
 }
 
-impl BuiltinDefs {
-    pub fn plus(&self) -> &BuiltinName {
-        &self.plus
-    }
-
-    pub fn minus(&self) -> &BuiltinName {
-        &self.minus
-    }
-
-    pub fn less(&self) -> &BuiltinName {
-        &self.less
-    }
+pub struct BuiltinDefs {
+    pub plus: N<BuiltinName>,
+    pub minus: N<BuiltinName>,
+    pub less: N<BuiltinName>,
 }
 
 pub static B: Lazy<BuiltinDefs> = Lazy::new(|| BuiltinDefs::new());
