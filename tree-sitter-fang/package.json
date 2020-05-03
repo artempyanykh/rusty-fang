@@ -1,0 +1,17 @@
+{
+  "name": "tree-sitter-fang",
+  "version": "0.0.1",
+  "description": "Tree-sitter based parser for Fang language",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "nam": "0.0.0"
+  },
+  "devDependencies": {
+    "tree-sitter-cli": "^0.16.5"
+  }
+}
