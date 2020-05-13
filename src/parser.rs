@@ -1,4 +1,5 @@
-use std::fmt::Debug;
+use std::fmt::Display;
+use std::fmt::{self, Debug};
 use std::sync::Arc;
 use tree_sitter::Point;
 use tree_sitter::{Language, Node, Parser, Range, Tree};
@@ -23,6 +24,17 @@ pub struct ParsingError {
     offset: usize,
 }
 
+pub struct WithCode<'a, 'b: 'a, T> {
+    code: &'a str,
+    t: &'b T,
+}
+
+impl<'a, 'b, T> WithCode<'a, 'b, T> {
+    pub fn new(code: &'a str, t: &'b T) -> WithCode<'a, 'b, T> {
+        WithCode { code, t }
+    }
+}
+
 impl ParsingError {
     fn new(msg: String, range: Range) -> ParsingError {
         ParsingError {
@@ -30,6 +42,49 @@ impl ParsingError {
             loc: range.start_point.into(),
             offset: range.start_byte,
         }
+    }
+}
+
+impl<'a, 'b> Display for WithCode<'a, 'b, ParsingError> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::result::Result<(), fmt::Error> {
+        let prev_newline = self.code[..self.t.offset].rfind("\n");
+        let next_newline = self.code[self.t.offset..]
+            .find("\n")
+            .map(|pos| pos + self.t.offset);
+
+        let line = match (prev_newline, next_newline) {
+            (Some(p), Some(n)) => self.code[p..n].trim(),
+            (Some(p), None) => self.code[p..].trim(),
+            (None, Some(n)) => self.code[..n].trim(),
+            (None, None) => self.code.trim(),
+        };
+
+        let row_num_width = (self.t.loc.row + 1).to_string().len();
+        let fill = row_num_width + 3;
+
+        writeln!(
+            f,
+            "{:>fill$} {}:{}",
+            "-->",
+            self.t.loc.row + 1,
+            self.t.loc.col + 1,
+            fill = fill
+        )?;
+        writeln!(
+            f,
+            " {:>fill$} | {}",
+            self.t.loc.row + 1,
+            line,
+            fill = row_num_width
+        )?;
+        writeln!(f, "{:>fill$} ^", " ", fill = fill + self.t.loc.col)?;
+        writeln!(
+            f,
+            "{:>fill$} {}",
+            " ",
+            self.t.msg,
+            fill = fill + self.t.loc.col
+        )
     }
 }
 
@@ -41,17 +96,58 @@ pub fn parse(code: &str) -> Result<CompilationUnit> {
     let mut errors = vec![];
     let mut expressions = vec![];
 
-    for child in root.named_children(&mut root.walk()) {
-        match parse_ex(code, child) {
-            Ok(ex) => expressions.push(ex),
-            Err(e) => errors.extend(e),
+    let grammar_errors = collect_error_nodes(code, root);
+
+    if grammar_errors.is_empty() {
+        for child in root.named_children(&mut root.walk()) {
+            match parse_ex(code, child) {
+                Ok(ex) => expressions.push(ex),
+                Err(e) => errors.extend(e),
+            }
         }
+    } else {
+        errors.extend(grammar_errors);
     }
 
     if errors.is_empty() {
         Ok(CompilationUnit { nodes: expressions })
     } else {
         Err(errors)
+    }
+}
+
+fn collect_error_nodes(code: &str, node: Node<'_>) -> Vec<ParsingError> {
+    // Sometimes ERROR node can have complex structure inside with additional
+    // ERROR nodes. Therefore we first try to get the more specific issue found
+    // inside child nodes, and if nothing found return a more generic error from
+    // current node.
+    let this_nodes_error = if node.is_error() {
+        let error = ParsingError {
+            msg: format!("Unexpected token"),
+            loc: node.range().start_point.into(),
+            offset: node.range().start_byte,
+        };
+        vec![error]
+    } else if node.is_missing() {
+        let error = ParsingError {
+            msg: format!("Missing token"),
+            loc: node.range().start_point.into(),
+            offset: node.range().start_byte,
+        };
+        vec![error]
+    } else {
+        vec![]
+    };
+
+    let mut all_child_errors = vec![];
+    node.children(&mut node.walk())
+        .map(|child| collect_error_nodes(code, child))
+        .for_each(|child_errors| all_child_errors.extend(child_errors));
+
+    if all_child_errors.is_empty() {
+        this_nodes_error
+    } else {
+        all_child_errors
     }
 }
 
@@ -137,6 +233,7 @@ pub fn parse_prefix_ex(code: &str, node: Node<'_>) -> Result<N<PrefixEx>> {
 pub fn parse_let(code: &str, node: Node<'_>) -> Result<N<LetEx>> {
     let bindings: Vec<_> = node
         .children_by_field_name("bindings", &mut node.walk())
+        .filter(|n| n.is_named())
         .map(|n| parse_binding(code, n))
         .collect();
     let bindings = combine_results_n(bindings);
@@ -153,6 +250,7 @@ pub fn parse_binding(code: &str, node: Node<'_>) -> Result<N<Bind>> {
 
     let params: Vec<_> = node
         .children_by_field_name("params", &mut node.walk())
+        .filter(|n| n.is_named())
         .map(|n| parse_identifier(code, n.range()))
         .collect();
 
@@ -165,6 +263,7 @@ pub fn parse_binding(code: &str, node: Node<'_>) -> Result<N<Bind>> {
 pub fn parse_lambda(code: &str, node: Node<'_>) -> Result<N<Lam>> {
     let params: Vec<_> = node
         .children_by_field_name("params", &mut node.walk())
+        .filter(|n| n.is_named())
         .map(|n| parse_identifier(code, n.range()))
         .collect();
     let body_node = require_child_by_field_name(node, "body");
@@ -177,6 +276,7 @@ pub fn parse_ap(code: &str, node: Node<'_>) -> Result<N<Ap>> {
     let receiver = parse_ex(code, receiver_node);
     let arguments: Vec<_> = node
         .children_by_field_name("arguments", &mut node.walk())
+        .filter(|n| n.is_named())
         .map(|n| parse_ex(code, n))
         .collect();
     let arguments = combine_results_n(arguments);
