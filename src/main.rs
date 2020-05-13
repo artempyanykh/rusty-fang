@@ -1,31 +1,43 @@
 mod builtin;
 mod interp;
+mod parser;
 mod tast;
 mod ty;
 
-fn main() {
-    let env = interp::Env::new();
+use anyhow::{anyhow, Context};
+use std::error::Error as StdError;
+use std::fs;
+use std::path::PathBuf;
 
-    // let ex = Rc::new(tast::example::const_binding_ex());
-    // println!("{}", ex);
-    // println!("=== Eval");
-    // println!("{}", interp::eval_ex(ex, &env));
+mod cli {
+    use clap::{App, Arg, ArgGroup};
 
-    // let inc_name = tast::NameDef("inc".to_string());
-    // let inc_binding = tast::example::inc_binding();
-    // println!("{}", inc_binding.ex);
-    // let env = env.bind(&inc_name, Rc::new(inc_binding.ex));
-    // let ex = Rc::new(tast::example::incinc_ap_n(15));
-    // println!("{}", ex);
-    // println!("=== Eval");
-    // println!("{}", interp::eval_ex(ex, &env));
+    pub fn mk<'a, 'b>() -> App<'a, 'b> {
+        let dumpAst = Arg::with_name("dump-ast").long("--ddump-ast");
+        let debugGroup = ArgGroup::with_name("debug")
+            .args(&["dump-ast"])
+            .multiple(false);
 
-    let fib_name = tast::NameDef("fib".to_string());
-    let fib_binding = tast::example::fibonacci();
-    println!("{}", fib_binding.ex);
-    let env = env.bind(&fib_name, fib_binding.ex);
-    let ex = tast::example::fibonacci_ap_n(30);
-    println!("{}", ex);
-    println!("=== Eval");
-    println!("{}", interp::eval_ex(ex, &env));
+        let files = Arg::with_name("file").required(true);
+        App::new("fangc").arg(dumpAst).group(debugGroup).arg(files)
+    }
+}
+
+fn main() -> anyhow::Result<()> {
+    let args = cli::mk().get_matches();
+
+    let file: PathBuf = args
+        .value_of_lossy("file")
+        .map(|f| PathBuf::from(f.to_string()))
+        .unwrap();
+    let file =
+        fs::read_to_string(&file).context(anyhow!("File doesn't exist: {}", file.display()))?;
+
+    let ast = parser::parse(&file);
+
+    if args.is_present("dump-ast") {
+        println!("{:#?}", ast);
+    }
+
+    Ok(())
 }

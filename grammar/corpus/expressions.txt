@@ -1,0 +1,238 @@
+========================
+Correct Numbers
+========================
+
+0
+-0
+1
+-1
+01
+-01
+42
+-42
+9_999_999_999_999_999_999
+
+---
+
+(unit 
+    (const_int) 
+    (const_int) 
+    (const_int) 
+    (const_int) 
+    (const_int) 
+    (const_int)
+    (const_int)
+    (const_int)
+    (const_int)
+)
+
+========================
+Incorrect Numbers
+========================
+
+_1
+-_2
+_4__
+
+---
+
+(unit 
+    (ERROR 
+        (UNEXPECTED '1') 
+        (UNEXPECTED '2'))
+)
+
+========================
+Bindings
+========================
+
+_myPrivateNum = 23
+myNum = 42
+myNum
+id a = a
+
+
+---
+
+(unit 
+    (binding lhs: (identifier) rhs: (const_int))
+    (binding lhs: (identifier) rhs: (const_int))
+    (identifier)
+    (binding 
+        lhs: (identifier) 
+        params: (identifier)
+        rhs: (identifier))    
+)
+
+========================
+Booleans
+========================
+
+True
+False
+
+---
+
+(unit
+    (const_bool)
+    (const_bool))
+
+========================
+Lambdas
+========================
+
+\-> 42
+\ -> x
+\a -> a
+\ a -> a
+\a b -> a
+\a -> \b -> a
+---
+
+(unit 
+    (lambda (const_int))
+    (lambda (identifier))
+    (lambda (identifier) (identifier))
+    (lambda (identifier) (identifier))
+    (lambda (identifier) (identifier) (identifier))
+    (lambda (identifier) (lambda (identifier) (identifier)))
+)
+
+========================
+Applications
+========================
+
+inc = \x -> plus(x, 1)
+inc(42)
+double_sum = \x y -> mul(plus(x, y), 2)
+double_sum(1, 2)
+double_sum(1)(2)
+
+---
+
+(unit 
+    (binding 
+        (identifier) 
+        (lambda 
+            (identifier) 
+            (ap (identifier) (identifier) (const_int))))
+    (ap (identifier) (const_int))
+    (binding 
+        (identifier) 
+        (lambda 
+            (identifier) 
+            (identifier) 
+            (ap 
+                (identifier) 
+                (ap (identifier) (identifier) (identifier)) (const_int))))
+    (ap 
+        (identifier) 
+        (const_int) 
+        (const_int))
+    (ap 
+        (ap (identifier) (const_int))
+        (const_int))
+)
+
+========================
+Infix expressions
+========================
+1 * 2
+1 * 2 + 2
+1 * 2 * 3
+1 < 2
+1 <= 2
+1 > 2
+1 >= 2
+1 == 2
+1 < 2 + 3
+f(1) + f(2)
+
+---
+
+(unit 
+    (infix_ex (const_int) (infix_op) (const_int))
+    (infix_ex (infix_ex (const_int) (infix_op) (const_int)) (infix_op) (const_int))
+    (infix_ex (infix_ex (const_int) (infix_op) (const_int)) (infix_op) (const_int))
+    (infix_ex (const_int) (infix_op) (const_int))
+    (infix_ex (const_int) (infix_op) (const_int))
+    (infix_ex (const_int) (infix_op) (const_int))
+    (infix_ex (const_int) (infix_op) (const_int))
+    (infix_ex (const_int) (infix_op) (const_int))
+    (infix_ex (const_int) (infix_op) (infix_ex (const_int) (infix_op) (const_int)))
+    (infix_ex (ap (identifier) (const_int)) (infix_op) (ap (identifier) (const_int)))
+)
+
+========================
+Prefix expressions
+========================
+-a
+-a + b
+-a * (-b)
+-a + -7
+-7 + -b
+-f(x)
+
+---
+
+(unit 
+    (prefix_ex (prefix_op) (identifier))
+    (infix_ex (prefix_ex (prefix_op) (identifier)) (infix_op) (identifier))
+    (infix_ex (prefix_ex (prefix_op) (identifier)) (infix_op) (prefix_ex (prefix_op) (identifier)))
+    (infix_ex (prefix_ex (prefix_op) (identifier)) (infix_op) (const_int))
+    (infix_ex (const_int) (infix_op) (prefix_ex (prefix_op) (identifier)))
+    (prefix_ex (prefix_op) (ap (identifier) (identifier)))
+)
+
+========================
+Let expressions
+========================
+
+let a = 1,
+    b = 2
+in
+    a + b
+---
+
+(unit 
+    (let (binding (identifier) (const_int)) (binding (identifier) (const_int))
+    (infix_ex (identifier) (infix_op) (identifier)))
+)
+
+
+========================
+Incorect let expressions
+========================
+
+result = 
+    let a = 1
+        b = 2
+    in a + b
+
+let c = f(a),
+    d = g(b)
+    c * d
+---
+
+(unit 
+    (binding 
+        (identifier) 
+        (let 
+            (binding 
+                (identifier) 
+                (ERROR (const_int))
+                (binding (identifier) (const_int))
+            )
+            (infix_ex (identifier) (infix_op) (identifier)))
+    )
+    (ERROR 
+        (binding (identifier) (ap (identifier) (identifier)))
+        (binding 
+            (identifier) 
+            (infix_ex 
+                (ap (identifier) (identifier))
+                (ERROR (identifier))
+                (infix_op)
+                (identifier)))
+    )
+)
