@@ -12,6 +12,6 @@
     "nam": "0.0.0"
   },
   "devDependencies": {
-    "tree-sitter-cli": "^0.16.5"
+    "tree-sitter-cli": "^0.17.1"
   }
 }

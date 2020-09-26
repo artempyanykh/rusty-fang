@@ -4,7 +4,7 @@
     "named": true,
     "fields": {
       "arguments": {
-        "multiple": false,
+        "multiple": true,
         "required": false,
         "types": [
           {
@@ -62,7 +62,7 @@
         ]
       },
       "receiver": {
-        "multiple": false,
+        "multiple": true,
         "required": true,
         "types": [
           {
@@ -132,7 +132,7 @@
         ]
       },
       "params": {
-        "multiple": false,
+        "multiple": true,
         "required": false,
         "types": [
           {
@@ -142,7 +142,7 @@
         ]
       },
       "rhs": {
-        "multiple": false,
+        "multiple": true,
         "required": true,
         "types": [
           {
@@ -202,7 +202,7 @@
     "named": true,
     "fields": {
       "else": {
-        "multiple": false,
+        "multiple": true,
         "required": true,
         "types": [
           {
@@ -256,7 +256,7 @@
         ]
       },
       "pred": {
-        "multiple": false,
+        "multiple": true,
         "required": true,
         "types": [
           {
@@ -310,7 +310,7 @@
         ]
       },
       "then": {
-        "multiple": false,
+        "multiple": true,
         "required": true,
         "types": [
           {
@@ -375,7 +375,7 @@
     "named": true,
     "fields": {
       "lhs": {
-        "multiple": false,
+        "multiple": true,
         "required": true,
         "types": [
           {
@@ -439,7 +439,7 @@
         ]
       },
       "rhs": {
-        "multiple": false,
+        "multiple": true,
         "required": true,
         "types": [
           {
@@ -499,7 +499,7 @@
     "named": true,
     "fields": {
       "body": {
-        "multiple": false,
+        "multiple": true,
         "required": true,
         "types": [
           {
@@ -553,7 +553,7 @@
         ]
       },
       "params": {
-        "multiple": false,
+        "multiple": true,
         "required": false,
         "types": [
           {
@@ -569,7 +569,7 @@
     "named": true,
     "fields": {
       "bindings": {
-        "multiple": false,
+        "multiple": true,
         "required": true,
         "types": [
           {
@@ -583,7 +583,7 @@
         ]
       },
       "body": {
-        "multiple": false,
+        "multiple": true,
         "required": true,
         "types": [
           {
@@ -643,7 +643,7 @@
     "named": true,
     "fields": {
       "body": {
-        "multiple": false,
+        "multiple": true,
         "required": true,
         "types": [
           {
