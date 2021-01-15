@@ -6,6 +6,6 @@ fn main() {
     cc::Build::new()
         .include(&dir)
         .file(dir.join("parser.c"))
-        .flag("-Wno-unused-but-set-variable") // this warning comes from tree-sitter generate code
+        .flag_if_supported("-Wno-unused-but-set-variable") // this warning comes from tree-sitter generate code
         .compile("grammar");
 }
